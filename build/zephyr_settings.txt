@@ -1,0 +1,20 @@
+# WARNING. THIS FILE IS AUTO-GENERATED. DO NOT MODIFY!
+#
+# This file contains build system settings derived from your modules.
+#
+# Modules may be set via ZEPHYR_MODULES, ZEPHYR_EXTRA_MODULES,
+# and/or the west manifest file.
+#
+# See the Modules guide for more information.
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/adi"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/ambiq"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/atmel"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/bouffalolab"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/espressif"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/gigadevice"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/infineon"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/microchip"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/nuvoton"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/nxp"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/stm32"
+"DTS_ROOT":"C:/Users/rcjam/modules/hal/ti"

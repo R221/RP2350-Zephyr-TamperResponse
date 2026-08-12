@@ -1,0 +1,1 @@
+"mcuboot":"C:/Users/rcjam/bootloader/mcuboot":"C:/Users/rcjam/bootloader/mcuboot/boot/zephyr/sysbuild"
