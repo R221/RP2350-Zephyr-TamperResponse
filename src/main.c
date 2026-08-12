@@ -1,21 +1,21 @@
 /*
  * Tamper-response firmware for the Raspberry Pi Pico 2 (RP2350), Zephyr version.
- * Stage 4: add the secret, the zeroize-on-tamper response, and a shared
- *          "tampered" flag that the heartbeat thread reads to change the LED.
+ * Stage 5 (final): add a custom "tamper" shell command so you can query the
+ *                  device interactively over serial.
  *
- * Threads running concurrently:
+ *   tamper status  -> reports ARMED or TAMPERED
+ *   tamper secret  -> prints the secret bytes (AB..AB when armed, 00..00 wiped)
+ *
+ * Threads:
  *   - main            : prints "alive" once a second
- *   - heartbeat_thread: blinks the LED slowly when armed, rapidly when tampered
- *   - tamper_thread    : watches the reed switch, zeroizes the secret on tamper
- *
- * New RTOS concept: the two worker threads share one piece of state (the
- * tampered flag). We use an atomic variable so they can read/write it safely
- * without corrupting each other.
+ *   - heartbeat_thread: slow blink armed, fast blink tampered
+ *   - tamper_thread    : watches the reed switch, zeroizes on tamper
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/sys/atomic.h>
+#include <zephyr/shell/shell.h>
 
 /* ---- Devices ---- */
 #define LED0_NODE   DT_ALIAS(led0)
@@ -23,22 +23,13 @@
 static const struct gpio_dt_spec led    = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 static const struct gpio_dt_spec tamper = GPIO_DT_SPEC_GET(TAMPER_NODE, gpios);
 
-/* ---- The secret ----
- * 32 bytes of 0xAB, exactly like the Rust firmware. 'volatile' tells the
- * compiler this memory can change in ways it can't see, which (combined with
- * the volatile write in zeroize) stops it from optimizing the wipe away --
- * the same dead-store-elimination lesson you saw in Ghidra. */
+/* ---- The secret (volatile so the wipe can't be optimized away) ---- */
 #define SECRET_LEN 32
 static volatile uint8_t secret[SECRET_LEN];
 
-/* ---- Shared state between threads ----
- * atomic_t is a variable multiple threads can safely read and write.
- * 0 = armed, 1 = tampered. The tamper thread writes it; the heartbeat
- * thread reads it. Using atomic access means neither thread can catch the
- * other mid-update. */
+/* ---- Shared state: 0 = armed, 1 = tampered ---- */
 static atomic_t tampered = ATOMIC_INIT(0);
 
-/* Fill the secret with 0xAB. */
 static void arm_secret(void)
 {
     for (int i = 0; i < SECRET_LEN; i++) {
@@ -46,8 +37,6 @@ static void arm_secret(void)
     }
 }
 
-/* Wipe the secret. Volatile writes so the compiler MUST emit every store
- * (you saw these as the wall of strb instructions in Ghidra). */
 static void zeroize_secret(void)
 {
     for (int i = 0; i < SECRET_LEN; i++) {
@@ -55,7 +44,7 @@ static void zeroize_secret(void)
     }
 }
 
-/* ---- Heartbeat thread: LED reflects the shared state ---- */
+/* ---- Heartbeat thread: LED reflects shared state ---- */
 void heartbeat_thread(void)
 {
     if (!gpio_is_ready_dt(&led)) {
@@ -65,20 +54,12 @@ void heartbeat_thread(void)
     gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
 
     while (1) {
-        /* Read the shared flag. If tampered, blink fast; if armed, blink slow.
-         * This is the heartbeat thread REACTING to what the tamper thread
-         * wrote -- two threads communicating through shared state. */
-        if (atomic_get(&tampered)) {
-            gpio_pin_toggle_dt(&led);
-            k_msleep(80);    /* frantic fast blink = tampered */
-        } else {
-            gpio_pin_toggle_dt(&led);
-            k_msleep(500);   /* calm slow blink = armed */
-        }
+        gpio_pin_toggle_dt(&led);
+        k_msleep(atomic_get(&tampered) ? 80 : 500);
     }
 }
 
-/* ---- Tamper-monitor thread: detect tamper, zeroize, set shared flag ---- */
+/* ---- Tamper-monitor thread ---- */
 void tamper_thread(void)
 {
     if (!gpio_is_ready_dt(&tamper)) {
@@ -93,11 +74,9 @@ void tamper_thread(void)
     while (1) {
         int val = gpio_pin_get_dt(&tamper);
 
-        /* Only act on the first tamper (one-way latch). atomic_get checks
-         * the current state without a separate local flag. */
         if (!atomic_get(&tampered) && val == 1) {
-            zeroize_secret();                 /* destroy the secret */
-            atomic_set(&tampered, 1);         /* publish tampered to all threads */
+            zeroize_secret();
+            atomic_set(&tampered, 1);
             printk("*** TAMPER DETECTED -- secret zeroized ***\n");
         }
 
@@ -105,9 +84,45 @@ void tamper_thread(void)
     }
 }
 
-/* heartbeat: low priority (7). tamper: higher priority (5). */
 K_THREAD_DEFINE(heartbeat_id, 512, heartbeat_thread, NULL, NULL, NULL, 7, 0, 0);
 K_THREAD_DEFINE(tamper_id,    512, tamper_thread,    NULL, NULL, NULL, 5, 0, 0);
+
+/* ======================================================================
+ * Custom shell command: "tamper"
+ * ====================================================================== */
+
+/* Handler for "tamper status" */
+static int cmd_tamper_status(const struct shell *sh, size_t argc, char **argv)
+{
+    if (atomic_get(&tampered)) {
+        shell_print(sh, "State: TAMPERED (secret has been zeroized)");
+    } else {
+        shell_print(sh, "State: ARMED (secret intact)");
+    }
+    return 0;
+}
+
+/* Handler for "tamper secret" -- dumps the secret bytes so you can SEE
+ * whether it's intact (AB..) or wiped (00..). Proof of the zeroize, live. */
+static int cmd_tamper_secret(const struct shell *sh, size_t argc, char **argv)
+{
+    shell_print(sh, "Secret bytes:");
+    for (int i = 0; i < SECRET_LEN; i++) {
+        shell_fprintf(sh, SHELL_NORMAL, "%02X ", secret[i]);
+    }
+    shell_print(sh, "");   /* newline */
+    return 0;
+}
+
+/* Build the subcommand set: "status" and "secret" under "tamper". */
+SHELL_STATIC_SUBCMD_SET_CREATE(tamper_subcmds,
+    SHELL_CMD(status, NULL, "Show armed/tampered state.", cmd_tamper_status),
+    SHELL_CMD(secret, NULL, "Dump the secret bytes.",     cmd_tamper_secret),
+    SHELL_SUBCMD_SET_END
+);
+
+/* Register the top-level "tamper" command with its subcommands. */
+SHELL_CMD_REGISTER(tamper, &tamper_subcmds, "Tamper device commands", NULL);
 
 int main(void)
 {
