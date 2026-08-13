@@ -129,7 +129,7 @@ int main(void)
     printk("Tamper firmware starting...\n");
 
     while (1) {
-        printk("alive\n");
+        // printk("alive\n");
         k_msleep(1000);
     }
 
