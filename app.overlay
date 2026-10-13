@@ -4,7 +4,7 @@
  * This file describes OUR custom hardware to Zephyr: the tamper input pin.
  * Zephyr's devicetree already knows about the board's built-in things (like
  * the onboard LED, led0), but it doesn't know we've wired a reed switch to
- * GPIO7. This overlay adds that information so our code can refer to the
+ * GPIO15. This overlay adds that information so our code can refer to the
  * tamper pin by name instead of hardcoding pin numbers.
  */
 
@@ -12,7 +12,7 @@
 	tamper {
 		compatible = "gpio-keys";
 		tamper_switch: tamper_switch {
-			gpios = <&gpio0 7 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+			gpios = <&gpio0 15 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
 			label = "Tamper Switch";
 		};
 	};

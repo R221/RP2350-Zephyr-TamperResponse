@@ -69,7 +69,7 @@ void tamper_thread(void)
     gpio_pin_configure_dt(&tamper, GPIO_INPUT);
 
     arm_secret();
-    printk("tamper: monitoring GPIO7 (armed, secret loaded)\n");
+    printk("tamper: monitoring GPIO15 (armed, secret loaded)\n");
 
     while (1) {
         int val = gpio_pin_get_dt(&tamper);
