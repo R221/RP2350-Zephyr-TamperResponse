@@ -1,0 +1,33 @@
+# Zephyr / west build output
+build/
+build-*/
+twister-out*/
+
+# Firmware images and compiled artifacts
+*.uf2
+*.elf
+*.bin
+*.hex
+*.map
+
+# west workspace metadata
+.west/
+
+# Python virtual environments
+.venv/
+venv/
+__pycache__/
+
+# SECURITY: never commit keys or secrets
+*.pem
+*.key
+aes_key*
+iv_salt*
+*secret*
+*private*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

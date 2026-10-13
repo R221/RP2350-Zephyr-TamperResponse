@@ -1,2 +1,0 @@
-# Load Sysbuild board Kconfig descriptions.
-osource "C:/Users/rcjam/zephyr/boards/raspberrypi/rpi_pico2/Kconfig.sysbuild"
