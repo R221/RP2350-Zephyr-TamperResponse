@@ -31,3 +31,4 @@ iv_salt*
 Thumbs.db
 .vscode/
 .idea/
+build/
